@@ -2,13 +2,59 @@
 
 
 default_directory=$(pwd)
+
+
+create_service() {
+    echo "Creating systemd service..."
+
+    service_name="mc-bot"
+    service_file="$service_name.service"
+
+    cat <<EOF > $service_file
+[Unit]
+Description=Minecraft Server Manager Bot
+After=network.target
+
+[Service]
+User=$USER
+WorkingDirectory=$default_directory
+ExecStart=/bin/bash start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    echo "Moving service file..."
+    sudo mv $service_file /etc/systemd/system/
+
+    echo "Reloading systemd..."
+    sudo systemctl daemon-reexec
+    sudo systemctl daemon-reload
+
+    echo "Enabling service..."
+    sudo systemctl enable $service_name
+
+    echo "Starting service..."
+    sudo systemctl start $service_name
+
+    echo "Service created and started!"
+}
+
+
+
 update_everything()
 {
     echo "Updating Package Repo"
-    sudo add-apt-repository ppa:deadsnakes/ppa -y >/dev/null
     sudo apt update -y >/dev/null
     echo "Installing Python 3.11 And Latest Java"
-    sudo apt install python3 openjdk-25-jdk curl -y
+    sudo apt install python3 openjdk-25-jdk curl python3-pip python3-venv ufw -y >/dev/null
+    echo "Starting venv To Install Python Packages"
+    python3 -m venv .venv
+    source .venv/bin/activate
+    echo "Installing Python Packages"
+    pip3 install -r requirements.txt >/dev/null
     echo -e "\n Packages Installed Successfully!"
 
 }
@@ -45,7 +91,7 @@ running_server()
     echo "Running Downloaded Server With 16gb Ram Once To Generate Server Config"
     java -Xmx16G -jar server.jar nogui >/dev/null & 
         PID=$!
-        sleep 20
+        sleep 30
         kill $PID
         clear
     echo "Killed"
@@ -55,10 +101,37 @@ running_server()
 
 }
 
-#update_everything
+setup_firewall()
+{
+    echo -e "Enabling Port Forwarding\nEnter SUDO Password When Prompted!"
+    sleep 1
+    sudo iptables -P INPUT ACCEPT 
+    sudo iptables -P FORWARD ACCEPT 
+    sudo iptables -P OUTPUT ACCEPT 
+    sudo iptables -F 
+    sudo iptables-save 
+    sudo ufw allow 25565/tcp
+    sudo ufw --force enable
+    sleep 1
+    echo "Done"
+}
+
+
+
+
+update_everything
 download_server
 running_server
+setup_firewall
 sleep 5
 clear
 echo "Use python3 -m bot To Start The Bot"
 echo ""
+echo ""
+echo "Do You Want To Add This Bot To Start Automatically On The Boot? Y/N"
+read service
+case $service in
+        [Yy]* ) create_service;;
+        [Nn]* ) exit;;
+        * ) echo "Please answer Y or N.";;
+esac

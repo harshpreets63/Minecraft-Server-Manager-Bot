@@ -21,8 +21,9 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 start_handler = CommandHandler('start', start)
-start_handler = CommandHandler('ping', ping)
+ping_handler = CommandHandler('ping', ping)
 app.add_handler(start_handler)
+app.add_handler(ping_handler)
 app.post_init = set_commands
 app.run_polling()
 
